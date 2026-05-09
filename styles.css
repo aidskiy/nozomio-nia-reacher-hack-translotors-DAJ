@@ -1,0 +1,195 @@
+.ell-highlight {
+  background: #ffe8e8 !important;
+  color: #b00020 !important;
+  border-bottom: 2px solid #d93025 !important;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+#ell-panel {
+  position: fixed;
+  top: 72px;
+  right: 16px;
+  z-index: 2147483647;
+  width: 320px;
+  max-height: calc(100vh - 96px);
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 14px;
+  color: #1f2937;
+  background: #ffffff;
+  border: 1px solid #d7dde5;
+  border-radius: 8px;
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.18);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+#ell-panel * {
+  box-sizing: border-box;
+  font-family: Arial, Helvetica, sans-serif;
+  letter-spacing: 0;
+}
+
+.ell-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.ell-panel-title {
+  margin: 0;
+  color: #111827;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.ell-panel-subtitle {
+  margin: 0 0 12px;
+  color: #5f6b7a;
+  font-size: 12px;
+}
+
+.ell-section {
+  padding-top: 12px;
+  margin-top: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.ell-section:first-of-type {
+  padding-top: 0;
+  margin-top: 0;
+  border-top: 0;
+}
+
+.ell-section-title {
+  margin: 0 0 8px;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.ell-word-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ell-word-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: start;
+  padding: 9px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 7px;
+}
+
+.ell-word {
+  display: block;
+  color: #b00020;
+  font-size: 14px;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.ell-definition {
+  display: block;
+  margin-top: 2px;
+  color: #4b5563;
+  font-size: 13px;
+}
+
+.ell-empty {
+  margin: 0;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.ell-button {
+  min-height: 30px;
+  padding: 6px 9px;
+  color: #ffffff;
+  background: #b00020;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ell-button:hover {
+  background: #8f001a;
+}
+
+.ell-button-secondary {
+  color: #374151;
+  background: #e5e7eb;
+}
+
+.ell-button-secondary:hover {
+  background: #d1d5db;
+}
+
+.ell-remove-button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: #6b7280;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.ell-remove-button:hover {
+  color: #b00020;
+  border-color: #b00020;
+}
+
+.ell-library-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ell-library-chip {
+  padding: 4px 7px;
+  color: #374151;
+  background: #eef2f7;
+  border-radius: 999px;
+  font-size: 12px;
+  word-break: break-word;
+}
+
+#ell-mark-button {
+  position: absolute;
+  z-index: 2147483647;
+  display: none;
+  padding: 7px 10px;
+  color: #ffffff;
+  background: #b00020;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.22);
+  cursor: pointer;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+#ell-mark-button:hover {
+  background: #8f001a;
+}
