@@ -262,7 +262,7 @@
   function hideMarkButtonWhenClickingAway(event) {
     const markButton = document.getElementById(MARK_BUTTON_ID);
     if (!markButton || event.target === markButton || isExtensionElement(event.target)) return;
-    markButton.style.display = "none";
+    markButton.style.setProperty("display", "none", "important");
   }
 
   function injectMarkButton() {
@@ -276,11 +276,46 @@
   }
 
   function showMarkButton(pageX, pageY) {
-    const button = document.getElementById(MARK_BUTTON_ID);
-    if (!button) return;
-    button.style.left = `${pageX + 8}px`;
-    button.style.top = `${pageY + 8}px`;
-    button.style.display = "block";
+    let button = document.getElementById(MARK_BUTTON_ID);
+    if (!button) {
+      injectMarkButton();
+      button = document.getElementById(MARK_BUTTON_ID);
+      if (!button) return;
+    }
+    const clientX = Math.max(8, pageX - (window.scrollX || 0));
+    const clientY = Math.max(8, pageY - (window.scrollY || 0));
+    button.style.cssText = [
+      "position: fixed !important",
+      `top: ${clientY + 8}px !important`,
+      `left: ${clientX + 8}px !important`,
+      "z-index: 2147483647 !important",
+      "display: block !important",
+      "visibility: visible !important",
+      "opacity: 1 !important",
+      "pointer-events: auto !important",
+      "padding: 12px 18px !important",
+      "color: #ffffff !important",
+      "background: #b00020 !important",
+      "border: 3px solid #ffffff !important",
+      "outline: 2px solid #b00020 !important",
+      "border-radius: 999px !important",
+      "box-shadow: 0 16px 32px rgba(0,0,0,0.4) !important",
+      "cursor: pointer !important",
+      "font-family: Arial, Helvetica, sans-serif !important",
+      "font-size: 16px !important",
+      "font-weight: 800 !important",
+      "line-height: 1.2 !important",
+      "white-space: nowrap !important",
+      "text-transform: none !important",
+      "letter-spacing: 0.02em !important",
+      "width: auto !important",
+      "height: auto !important",
+      "margin: 0 !important",
+      "min-width: 0 !important",
+      "max-width: none !important",
+      "min-height: 0 !important",
+      "max-height: none !important"
+    ].join("; ");
   }
 
   async function markPendingWord() {
@@ -291,7 +326,7 @@
     pendingRange = null;
     pendingWord = "";
     const button = document.getElementById(MARK_BUTTON_ID);
-    if (button) button.style.display = "none";
+    if (button) button.style.setProperty("display", "none", "important");
 
     try {
       await addWordRemote(word);
@@ -572,6 +607,7 @@
         document.querySelectorAll(`.ell-highlight[data-ell-word="${cssEscape(row.word)}"]`).forEach((node) => {
           node.textContent = replacement;
           node.title = `${row.word}: ${replacement}`;
+          node.classList.add("ell-replaced");
           appliedCount++;
         });
         row.definition = replacement;
@@ -690,7 +726,10 @@
 
   function highlightWordsInTextNode(textNode, wordList) {
     const text = textNode.nodeValue;
-    const pattern = new RegExp(`\\b(${wordList.map(escapeRegExp).join("|")})\\b`, "gi");
+    const patternStr = wordList
+      .map((w) => escapeRegExp(w).replace(/ /g, "\\s+"))
+      .join("|");
+    const pattern = new RegExp(`\\b(${patternStr})\\b`, "gi");
     if (!pattern.test(text)) return;
 
     pattern.lastIndex = 0;
@@ -759,12 +798,21 @@
   }
 
   function cleanWord(text) {
-    const match = text.match(/[A-Za-z][A-Za-z'-]*/);
-    return match ? normalizeWord(match[0]) : "";
+    if (!text) return "";
+    const collapsed = String(text)
+      .replace(/\s+/g, " ")
+      .toLowerCase()
+      .trim()
+      .replace(/^[\s,.;:!?(){}\[\]"'`]+|[\s,.;:!?(){}\[\]"'`]+$/g, "");
+    return collapsed;
   }
 
   function normalizeWord(word) {
-    return String(word).trim().toLowerCase().replace(/^[^a-z]+|[^a-z]+$/g, "");
+    return String(word)
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/^[\s,.;:!?(){}\[\]"'`]+|[\s,.;:!?(){}\[\]"'`]+$/g, "");
   }
 
   function clearSelection() {
