@@ -1,8 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Simple Reader Helper",
-  "version": "0.1.0",
-  "description": "Highlight unknown words and show simple replacements while reading articles.",
+  "version": "0.2.0",
+  "description": "Highlight unknown words and show simple replacements while reading articles. Sign-in required.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://nvh9k4xn.us-west.insforge.app/*"],
   "content_scripts": [
     {
       "matches": ["<all_urls>"],

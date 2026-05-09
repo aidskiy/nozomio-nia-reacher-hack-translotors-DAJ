@@ -129,6 +129,12 @@
   background: #8f001a;
 }
 
+.ell-button:disabled {
+  background: #d1d5db;
+  color: #6b7280;
+  cursor: progress;
+}
+
 .ell-button-secondary {
   color: #374151;
   background: #e5e7eb;
@@ -192,4 +198,72 @@
 
 #ell-mark-button:hover {
   background: #8f001a;
+}
+
+.ell-auth-form {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.ell-field {
+  display: grid;
+  gap: 4px;
+}
+
+.ell-field span {
+  color: #374151;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ell-field input {
+  width: 100%;
+  padding: 8px 10px;
+  color: #111827;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.ell-field input:focus {
+  outline: none;
+  border-color: #b00020;
+  box-shadow: 0 0 0 2px rgba(176, 0, 32, 0.18);
+}
+
+.ell-auth-message {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  color: #1f2937;
+  background: #fff3f3;
+  border: 1px solid #f3c2c8;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.ell-auth-switch {
+  margin: 8px 0 0;
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.ell-link-button {
+  margin-left: 4px;
+  padding: 0;
+  color: #b00020;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.ell-link-button:hover {
+  color: #8f001a;
 }
