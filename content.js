@@ -430,8 +430,8 @@
   }
 
   function renderSignedInPanel(panel) {
-    const activeWords = words.filter((w) => w.is_active);
-    const libraryWords = words;
+    const wordsOnPage = getWordsOnPage();
+    const activeOnPage = words.filter((w) => w.is_active && wordsOnPage.has(w.word));
 
     panel.innerHTML = `
       <div class="ell-panel-header">
@@ -444,12 +444,8 @@
       <p class="ell-panel-subtitle">Select text on the page, then click <em>Mark unknown</em>. (Double-click a single word to mark instantly.)</p>
       ${renderPendingSection()}
       <section class="ell-section">
-        <h3 class="ell-section-title">Unknown Words</h3>
-        ${renderUnknownWords(activeWords)}
-      </section>
-      <section class="ell-section">
-        <h3 class="ell-section-title">Library</h3>
-        ${renderLibrary(libraryWords)}
+        <h3 class="ell-section-title">Unknown Words on This Page</h3>
+        ${renderUnknownWords(activeOnPage)}
       </section>
     `;
 
@@ -491,8 +487,17 @@
     `;
   }
 
+  function getWordsOnPage() {
+    const onPage = new Set();
+    document.querySelectorAll(".ell-highlight[data-ell-word]").forEach((el) => {
+      const w = el.dataset.ellWord;
+      if (w) onPage.add(w);
+    });
+    return onPage;
+  }
+
   function renderUnknownWords(rows) {
-    if (rows.length === 0) return '<p class="ell-empty">No words marked yet.</p>';
+    if (rows.length === 0) return '<p class="ell-empty">No marked words on this page.</p>';
     const items = rows.map((row) => `
       <li class="ell-word-item">
         <span>
@@ -505,13 +510,7 @@
     return `<ul class="ell-word-list">${items.join("")}</ul>`;
   }
 
-  function renderLibrary(rows) {
-    if (rows.length === 0) return '<p class="ell-empty">Your saved words will appear here.</p>';
-    const items = rows.map((row) => `<li class="ell-library-chip">${escapeHtml(row.word)}</li>`);
-    return `<ul class="ell-library-list">${items.join("")}</ul>`;
-  }
-
-  async function removeActiveWord(word) {
+async function removeActiveWord(word) {
     const row = words.find((w) => w.word === word);
     if (!row) return;
     try {
@@ -669,7 +668,10 @@
         highlightDebounce = null;
         if (!mutationObserver) return;
         mutationObserver.disconnect();
-        try { highlightActiveWords(document.body); } finally {
+        try {
+          highlightActiveWords(document.body);
+          renderPanel();
+        } finally {
           if (mutationObserver) {
             mutationObserver.observe(document.body, { childList: true, subtree: true });
           }
