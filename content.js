@@ -2,7 +2,6 @@
   const API_BASE = "https://nvh9k4xn.us-west.insforge.app";
   const TOKEN_KEY = "insforge_tokens";
   const PANEL_ID = "ell-panel";
-  const MARK_BUTTON_ID = "ell-mark-button";
 
   const dictionary = {
     approximately: "about",
@@ -31,7 +30,6 @@
 
   async function init() {
     injectPanel();
-    injectMarkButton();
     await restoreSession();
     if (session) {
       try { await loadWords(); } catch (err) { console.warn("Reader Helper load failed", err); }
@@ -42,7 +40,6 @@
 
     document.addEventListener("mouseup", handleSelection);
     document.addEventListener("dblclick", handleDoubleClick);
-    document.addEventListener("click", hideMarkButtonWhenClickingAway);
   }
 
   // --- Auth ---
@@ -242,7 +239,7 @@
 
     pendingRange = selection.getRangeAt(0).cloneRange();
     pendingWord = word;
-    showMarkButton(event.pageX, event.pageY);
+    renderPanel();
   }
 
   function handleDoubleClick(event) {
@@ -259,64 +256,6 @@
     markPendingWord();
   }
 
-  function hideMarkButtonWhenClickingAway(event) {
-    const markButton = document.getElementById(MARK_BUTTON_ID);
-    if (!markButton || event.target === markButton || isExtensionElement(event.target)) return;
-    markButton.style.setProperty("display", "none", "important");
-  }
-
-  function injectMarkButton() {
-    if (document.getElementById(MARK_BUTTON_ID)) return;
-    const button = document.createElement("button");
-    button.id = MARK_BUTTON_ID;
-    button.type = "button";
-    button.textContent = "Mark unknown";
-    button.addEventListener("click", markPendingWord);
-    document.body.appendChild(button);
-  }
-
-  function showMarkButton(pageX, pageY) {
-    let button = document.getElementById(MARK_BUTTON_ID);
-    if (!button) {
-      injectMarkButton();
-      button = document.getElementById(MARK_BUTTON_ID);
-      if (!button) return;
-    }
-    const clientX = Math.max(8, pageX - (window.scrollX || 0));
-    const clientY = Math.max(8, pageY - (window.scrollY || 0));
-    button.style.cssText = [
-      "position: fixed !important",
-      `top: ${clientY + 8}px !important`,
-      `left: ${clientX + 8}px !important`,
-      "z-index: 2147483647 !important",
-      "display: block !important",
-      "visibility: visible !important",
-      "opacity: 1 !important",
-      "pointer-events: auto !important",
-      "padding: 12px 18px !important",
-      "color: #ffffff !important",
-      "background: #b00020 !important",
-      "border: 3px solid #ffffff !important",
-      "outline: 2px solid #b00020 !important",
-      "border-radius: 999px !important",
-      "box-shadow: 0 16px 32px rgba(0,0,0,0.4) !important",
-      "cursor: pointer !important",
-      "font-family: Arial, Helvetica, sans-serif !important",
-      "font-size: 16px !important",
-      "font-weight: 800 !important",
-      "line-height: 1.2 !important",
-      "white-space: nowrap !important",
-      "text-transform: none !important",
-      "letter-spacing: 0.02em !important",
-      "width: auto !important",
-      "height: auto !important",
-      "margin: 0 !important",
-      "min-width: 0 !important",
-      "max-width: none !important",
-      "min-height: 0 !important",
-      "max-height: none !important"
-    ].join("; ");
-  }
 
   async function markPendingWord() {
     if (!session || !pendingWord || !pendingRange) return;
@@ -325,8 +264,6 @@
 
     pendingRange = null;
     pendingWord = "";
-    const button = document.getElementById(MARK_BUTTON_ID);
-    if (button) button.style.setProperty("display", "none", "important");
 
     try {
       await addWordRemote(word);
@@ -504,7 +441,8 @@
       <p class="ell-panel-subtitle">Signed in as ${escapeHtml(session.user.email)}.
         <button class="ell-link-button" type="button" data-action="signout">Sign out</button>
       </p>
-      <p class="ell-panel-subtitle">Double-click a word, or select text and choose Mark unknown.</p>
+      <p class="ell-panel-subtitle">Select text on the page, then click <em>Mark unknown</em>. (Double-click a single word to mark instantly.)</p>
+      ${renderPendingSection()}
       <section class="ell-section">
         <h3 class="ell-section-title">Unknown Words</h3>
         ${renderUnknownWords(activeWords)}
@@ -520,9 +458,37 @@
       await signOut();
       renderPanel();
     });
+    const markBtn = panel.querySelector('[data-action="mark-pending"]');
+    if (markBtn) {
+      // mousedown preventDefault keeps the page selection alive while the click registers
+      markBtn.addEventListener("mousedown", (e) => e.preventDefault());
+      markBtn.addEventListener("click", markPendingWord);
+    }
+    const clearBtn = panel.querySelector('[data-action="clear-pending"]');
+    if (clearBtn) {
+      clearBtn.addEventListener("click", () => {
+        pendingRange = null;
+        pendingWord = "";
+        renderPanel();
+      });
+    }
     panel.querySelectorAll("[data-remove-word]").forEach((button) => {
       button.addEventListener("click", () => removeActiveWord(button.dataset.removeWord));
     });
+  }
+
+  function renderPendingSection() {
+    if (!pendingWord) return "";
+    return `
+      <section class="ell-section ell-pending-section">
+        <h3 class="ell-section-title">Selected</h3>
+        <p class="ell-pending-text">"${escapeHtml(pendingWord)}"</p>
+        <div class="ell-pending-actions">
+          <button class="ell-button ell-button-mark" type="button" data-action="mark-pending">Mark unknown</button>
+          <button class="ell-button ell-button-secondary" type="button" data-action="clear-pending">Clear</button>
+        </div>
+      </section>
+    `;
   }
 
   function renderUnknownWords(rows) {
@@ -821,7 +787,7 @@
   }
 
   function isExtensionElement(element) {
-    return Boolean(element && element.closest && element.closest(`#${PANEL_ID}, #${MARK_BUTTON_ID}`));
+    return Boolean(element && element.closest && element.closest(`#${PANEL_ID}`));
   }
 
   function escapeHtml(value) {
