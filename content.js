@@ -436,7 +436,11 @@
     panel.innerHTML = `
       <div class="ell-panel-header">
         <h2 class="ell-panel-title">Reader Helper</h2>
-        <button class="ell-button ell-button-secondary" type="button" data-action="replace">Replace</button>
+      </div>
+      <div class="ell-actions-row">
+        <button class="ell-button ell-button-secondary" type="button" data-action="replace">Simplify words to ${Math.round(TARGET_UNDERSTANDING * 100)}%</button>
+        <button class="ell-button ell-button-secondary" type="button" data-action="simplify-page">Simplify page</button>
+        ${pageHasSimplifications() ? '<button class="ell-button ell-button-secondary" type="button" data-action="restore-page">Restore</button>' : ""}
       </div>
       <p class="ell-panel-subtitle">Signed in as ${escapeHtml(session.user.email)}.
         <button class="ell-link-button" type="button" data-action="signout">Sign out</button>
@@ -449,7 +453,11 @@
       </section>
     `;
 
-    panel.querySelector('[data-action="replace"]').addEventListener("click", replaceHardWordsOnPage);
+    panel.querySelector('[data-action="replace"]').addEventListener("click", () => simplifyToThreshold(TARGET_UNDERSTANDING));
+    const simplifyBtn = panel.querySelector('[data-action="simplify-page"]');
+    if (simplifyBtn) simplifyBtn.addEventListener("click", simplifyPage);
+    const restoreBtn = panel.querySelector('[data-action="restore-page"]');
+    if (restoreBtn) restoreBtn.addEventListener("click", restorePage);
     panel.querySelector('[data-action="signout"]').addEventListener("click", async () => {
       await signOut();
       renderPanel();
@@ -516,7 +524,8 @@ async function removeActiveWord(word) {
     try {
       await deactivateWordRemote(row);
       document.querySelectorAll(`.ell-highlight[data-ell-word="${cssEscape(word)}"]`).forEach((node) => {
-        node.replaceWith(document.createTextNode(node.textContent));
+        const restoreText = node.dataset.ellOriginal || node.textContent;
+        node.replaceWith(document.createTextNode(restoreText));
       });
       renderPanel();
     } catch (err) {
@@ -527,20 +536,89 @@ async function removeActiveWord(word) {
 
   // --- Highlighting / replacement ---
 
-  async function replaceHardWordsOnPage() {
-    if (!session) return;
-    const active = words.filter((w) => w.is_active);
-    if (active.length === 0) return;
+  const TARGET_UNDERSTANDING = 0.80;
 
+  function countTextWords() {
+    return (document.body.innerText || "").split(/\s+/).filter(Boolean).length;
+  }
+
+  function countUnknownInstancesByWord() {
+    const counts = new Map();
+    document.querySelectorAll(".ell-highlight[data-ell-word]:not(.ell-replaced)").forEach((el) => {
+      const w = el.dataset.ellWord;
+      if (w) counts.set(w, (counts.get(w) || 0) + 1);
+    });
+    return counts;
+  }
+
+  function understandingRate() {
+    const total = countTextWords();
+    if (total === 0) return 1;
+    const unknown = Array.from(countUnknownInstancesByWord().values()).reduce((a, b) => a + b, 0);
+    return (total - unknown) / total;
+  }
+
+  function flashButton(button, message, restoreLabel) {
+    if (!button) return;
+    button.disabled = false;
+    button.textContent = message;
+    setTimeout(() => {
+      if (!button.isConnected) return;
+      button.textContent = restoreLabel;
+    }, 2200);
+  }
+
+  async function simplifyToThreshold(targetRate) {
+    if (!session) return;
     const button = document.querySelector(`#${PANEL_ID} [data-action="replace"]`);
-    const originalLabel = button ? button.textContent : "Replace";
+    const originalLabel = button ? button.textContent : `Simplify to ${Math.round(targetRate * 100)}%`;
+
+    const totalWords = countTextWords();
+    const unknownByWord = countUnknownInstancesByWord();
+    const totalUnknown = Array.from(unknownByWord.values()).reduce((a, b) => a + b, 0);
+
+    if (totalWords === 0 || totalUnknown === 0) {
+      flashButton(button, "Nothing to simplify", originalLabel);
+      return;
+    }
+
+    const currentRate = (totalWords - totalUnknown) / totalWords;
+    if (currentRate >= targetRate) {
+      flashButton(button, `Already at ${Math.round(currentRate * 100)}%`, originalLabel);
+      return;
+    }
+
+    const maxAllowedUnknown = Math.floor(totalWords * (1 - targetRate));
+    const needToReplace = totalUnknown - maxAllowedUnknown;
+
+    // Sort unknown words by their instance count descending — replacing the
+    // most-frequent words first gives the biggest comprehension lift per call.
+    const sorted = Array.from(unknownByWord.entries()).sort((a, b) => b[1] - a[1]);
+
+    const wordsToReplaceSet = new Set();
+    let cumulative = 0;
+    for (const [word, count] of sorted) {
+      if (cumulative >= needToReplace) break;
+      wordsToReplaceSet.add(word);
+      cumulative += count;
+    }
+
+    const rowsToReplace = words.filter((w) => w.is_active && wordsToReplaceSet.has(w.word));
+    await replaceWordSet(rowsToReplace, button, originalLabel);
+  }
+
+  async function replaceWordSet(rowsToReplace, button, originalLabel) {
+    if (rowsToReplace.length === 0) {
+      flashButton(button, "Nothing to simplify", originalLabel);
+      return;
+    }
     if (button) {
       button.disabled = true;
-      button.textContent = "Replacing...";
+      button.textContent = "Simplifying...";
     }
 
     try {
-      const items = active.map((row) => ({
+      const items = rowsToReplace.map((row) => ({
         word: row.word,
         context: getWordContext(row.word)
       }));
@@ -564,13 +642,16 @@ async function removeActiveWord(word) {
       const replacements = payload.replacements || {};
 
       let appliedCount = 0;
-      for (const row of active) {
+      for (const row of rowsToReplace) {
         const replacement = replacements[row.word];
         if (!replacement) continue;
         if (normalizeWord(replacement) === normalizeWord(row.word)) continue;
 
         document.querySelectorAll(`.ell-highlight[data-ell-word="${cssEscape(row.word)}"]`).forEach((node) => {
-          node.textContent = replacement;
+          if (!node.dataset.ellOriginal) {
+            node.dataset.ellOriginal = node.textContent;
+          }
+          node.textContent = `(${node.dataset.ellOriginal}) ${replacement}`;
           node.title = `${row.word}: ${replacement}`;
           node.classList.add("ell-replaced");
           appliedCount++;
@@ -578,22 +659,160 @@ async function removeActiveWord(word) {
         row.definition = replacement;
       }
 
-      if (button) {
-        button.textContent = appliedCount > 0 ? `Replaced ${appliedCount}` : "No replacements";
-        setTimeout(() => {
-          if (!button.isConnected) return;
-          button.disabled = false;
-          button.textContent = originalLabel;
-        }, 2000);
-      }
+      const newRate = Math.round(understandingRate() * 100);
+      const msg = appliedCount > 0 ? `Now ${newRate}% — replaced ${appliedCount}` : "No replacements";
+      flashButton(button, msg, originalLabel);
     } catch (err) {
       console.warn("Reader Helper replace failed", err);
       if (button) {
         button.disabled = false;
         button.textContent = originalLabel;
       }
-      alert(`Replace failed: ${err.message}`);
+      alert(`Simplify failed: ${err.message}`);
     }
+  }
+
+  // --- Simplify whole page ---
+
+  const SIMPLIFY_CHUNK = 15;
+  const PARAGRAPH_MIN_LEN = 60;
+
+  function pageHasSimplifications() {
+    return !!document.querySelector("[data-ell-original-html]");
+  }
+
+  const BLOCK_CHILD_TAGS = new Set([
+    "P", "DIV", "SECTION", "ARTICLE", "ASIDE", "HEADER", "FOOTER", "NAV", "MAIN",
+    "UL", "OL", "TABLE", "TR", "TBODY", "THEAD", "TFOOT", "FORM", "FIGURE",
+    "BLOCKQUOTE", "PRE", "DETAILS", "DIALOG",
+    "H1", "H2", "H3", "H4", "H5", "H6"
+  ]);
+
+  const SIMPLIFIABLE_CANDIDATE_TAGS =
+    "p, li, blockquote, div, article, section, main, aside, td, th, dd, figcaption, span";
+
+  const SIMPLIFIABLE_SKIP_ANCESTORS =
+    "nav, header, footer, aside, form, button, script, style, noscript, code, pre, " +
+    "[role='navigation'], [role='banner'], [role='contentinfo'], [contenteditable='true']";
+
+  function isParagraphLike(el) {
+    for (const child of el.children) {
+      if (BLOCK_CHILD_TAGS.has(child.tagName)) return false;
+    }
+    return true;
+  }
+
+  function collectSimplifiableParagraphs() {
+    const result = [];
+    const seen = new Set();
+    document.querySelectorAll(SIMPLIFIABLE_CANDIDATE_TAGS).forEach((el) => {
+      if (seen.has(el)) return;
+      if (isExtensionElement(el)) return;
+      if (el.closest(SIMPLIFIABLE_SKIP_ANCESTORS)) return;
+      if (el.dataset.ellOriginalHtml) return;
+      if (!isParagraphLike(el)) return;
+      const text = (el.textContent || "").replace(/\s+/g, " ").trim();
+      if (text.length < PARAGRAPH_MIN_LEN) return;
+      // Skip if an ancestor is already in the result (avoid double-simplifying)
+      let p = el.parentElement;
+      let skip = false;
+      while (p) { if (seen.has(p)) { skip = true; break; } p = p.parentElement; }
+      if (skip) return;
+      seen.add(el);
+      result.push({ el, text });
+    });
+    return result;
+  }
+
+  async function simplifyPage() {
+    if (!session) return;
+    const button = document.querySelector('#' + PANEL_ID + ' [data-action="simplify-page"]');
+    const originalLabel = button ? button.textContent : "Simplify page";
+
+    const paragraphs = collectSimplifiableParagraphs();
+    if (paragraphs.length === 0) {
+      flashButton(button, "Nothing to simplify", originalLabel);
+      return;
+    }
+
+    if (button) {
+      button.disabled = true;
+      button.textContent = `Simplifying 0/${paragraphs.length}...`;
+    }
+
+    // Tag each paragraph with a stable id and stash the original HTML for restore
+    paragraphs.forEach((p, i) => {
+      const id = `ellp-${Date.now()}-${i}`;
+      p.id = id;
+      p.el.dataset.ellParagraphId = id;
+      p.el.dataset.ellOriginalHtml = p.el.innerHTML;
+    });
+
+    // Disconnect mutation observer while we mutate so it doesn't go nuts
+    const observerWasOn = !!mutationObserver;
+    if (observerWasOn) stopHighlightObserver();
+
+    let totalSimplified = 0;
+    let processed = 0;
+
+    try {
+      for (let i = 0; i < paragraphs.length; i += SIMPLIFY_CHUNK) {
+        const chunk = paragraphs.slice(i, i + SIMPLIFY_CHUNK);
+        const items = chunk.map((p) => ({ id: p.id, text: p.text }));
+
+        const res = await apiFetch("/functions/simplify-page", {
+          method: "POST",
+          token: session.accessToken,
+          body: { items }
+        });
+        if (!res.ok) {
+          const errBody = await safeJson(res);
+          console.warn("Reader Helper simplify-page error body:", errBody);
+          throw new Error(extractError(errBody) || `Simplify failed (HTTP ${res.status})`);
+        }
+
+        const payload = await res.json();
+        const map = payload.simplifications || {};
+
+        for (const p of chunk) {
+          const simpler = map[p.id];
+          if (!simpler || simpler.trim() === p.text) continue;
+          p.el.textContent = simpler;
+          p.el.classList.add("ell-simplified-paragraph");
+          totalSimplified++;
+        }
+
+        processed += chunk.length;
+        if (button) button.textContent = `Simplifying ${processed}/${paragraphs.length}...`;
+      }
+
+      // Re-highlight any marked words that survived in the simplified text
+      highlightActiveWords(document.body);
+      renderPanel();
+      flashButton(button, `Simplified ${totalSimplified}/${paragraphs.length}`, originalLabel);
+    } catch (err) {
+      console.warn("Reader Helper simplify-page failed", err);
+      if (button) {
+        button.disabled = false;
+        button.textContent = originalLabel;
+      }
+      alert(`Simplify failed: ${err.message}`);
+    } finally {
+      if (observerWasOn) startHighlightObserver();
+    }
+  }
+
+  function restorePage() {
+    if (mutationObserver) stopHighlightObserver();
+    document.querySelectorAll("[data-ell-original-html]").forEach((el) => {
+      el.innerHTML = el.dataset.ellOriginalHtml;
+      delete el.dataset.ellOriginalHtml;
+      delete el.dataset.ellParagraphId;
+      el.classList.remove("ell-simplified-paragraph");
+    });
+    highlightActiveWords(document.body);
+    renderPanel();
+    if (session) startHighlightObserver();
   }
 
   function getWordContext(word) {
@@ -737,7 +956,8 @@ async function removeActiveWord(word) {
 
   function removeAllHighlightsFromPage() {
     document.querySelectorAll(".ell-highlight").forEach((node) => {
-      node.replaceWith(document.createTextNode(node.textContent));
+      const restoreText = node.dataset.ellOriginal || node.textContent;
+      node.replaceWith(document.createTextNode(restoreText));
     });
   }
 

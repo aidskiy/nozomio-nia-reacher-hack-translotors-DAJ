@@ -186,6 +186,18 @@
   word-break: break-word;
 }
 
+.ell-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.ell-simplified-paragraph {
+  border-left: 3px solid #15803d;
+  padding-left: 8px;
+}
+
 .ell-pending-section {
   background: #fff8e6;
   border: 1px solid #fbd589;
