@@ -2,6 +2,7 @@
   const API_BASE = "https://nvh9k4xn.us-west.insforge.app";
   const TOKEN_KEY = "insforge_tokens";
   const PANEL_ID = "ell-panel";
+  const PANEL_FOLDED_KEY = "ellPanelFolded";
 
   const dictionary = {
     approximately: "about",
@@ -25,6 +26,7 @@
   let pendingVerificationEmail = null;
   let mutationObserver = null;
   let highlightDebounce = null;
+  let isPanelFolded = localStorage.getItem(PANEL_FOLDED_KEY) === "true";
 
   init();
 
@@ -290,8 +292,27 @@
   function renderPanel() {
     const panel = document.getElementById(PANEL_ID);
     if (!panel) return;
+    panel.classList.toggle("ell-folded", isPanelFolded);
+    if (isPanelFolded) {
+      renderFoldedPanel(panel);
+      return;
+    }
+
     if (session) renderSignedInPanel(panel);
     else renderAuthPanel(panel);
+  }
+
+  function renderFoldedPanel(panel) {
+    panel.innerHTML = `
+      <button class="ell-bookmark-tab" type="button" data-action="expand-panel" aria-label="Open Reader Helper">
+        <span class="ell-bookmark-count">${escapeHtml(String(getActiveWordCount()))}</span>
+        <span class="ell-bookmark-label">Reader Helper</span>
+      </button>
+    `;
+
+    panel.querySelector('[data-action="expand-panel"]').addEventListener("click", () => {
+      setPanelFolded(false);
+    });
   }
 
   function renderAuthPanel(panel) {
@@ -305,6 +326,7 @@
     panel.innerHTML = `
       <div class="ell-panel-header">
         <h2 class="ell-panel-title">Reader Helper</h2>
+        <button class="ell-fold-button" type="button" data-action="fold-panel" aria-label="Fold Reader Helper">Fold</button>
       </div>
       <p class="ell-panel-subtitle">${escapeHtml(subtitle)}</p>
       <h3 class="ell-section-title">${escapeHtml(heading)}</h3>
@@ -314,6 +336,7 @@
     `;
 
     if (isVerify) {
+      panel.querySelector('[data-action="fold-panel"]').addEventListener("click", () => setPanelFolded(true));
       panel.querySelector('[data-action="verify"]').addEventListener("click", onVerifySubmit);
       panel.querySelector('[data-action="resend"]').addEventListener("click", onResend);
       panel.querySelector('[data-action="back"]').addEventListener("click", () => {
@@ -323,6 +346,7 @@
         renderPanel();
       });
     } else {
+      panel.querySelector('[data-action="fold-panel"]').addEventListener("click", () => setPanelFolded(true));
       panel.querySelector('[data-action="submit"]').addEventListener("click", onAuthSubmit);
       panel.querySelector('[data-action="switch"]').addEventListener("click", () => {
         authView = isSignUp ? "signin" : "signup";
@@ -436,6 +460,7 @@
     panel.innerHTML = `
       <div class="ell-panel-header">
         <h2 class="ell-panel-title">Reader Helper</h2>
+        <button class="ell-fold-button" type="button" data-action="fold-panel" aria-label="Fold Reader Helper">Fold</button>
       </div>
       <div class="ell-actions-row">
         <button class="ell-button ell-button-secondary" type="button" data-action="replace">Simplify words to ${Math.round(TARGET_UNDERSTANDING * 100)}%</button>
@@ -453,6 +478,7 @@
       </section>
     `;
 
+    panel.querySelector('[data-action="fold-panel"]').addEventListener("click", () => setPanelFolded(true));
     panel.querySelector('[data-action="replace"]').addEventListener("click", () => simplifyToThreshold(TARGET_UNDERSTANDING));
     const simplifyBtn = panel.querySelector('[data-action="simplify-page"]');
     if (simplifyBtn) simplifyBtn.addEventListener("click", simplifyPage);
@@ -493,6 +519,16 @@
         </div>
       </section>
     `;
+  }
+
+  function setPanelFolded(folded) {
+    isPanelFolded = folded;
+    localStorage.setItem(PANEL_FOLDED_KEY, String(folded));
+    renderPanel();
+  }
+
+  function getActiveWordCount() {
+    return session ? words.filter((w) => w.is_active).length : 0;
   }
 
   function getWordsOnPage() {
