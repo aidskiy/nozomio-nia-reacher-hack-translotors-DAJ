@@ -134,9 +134,16 @@
       if (!res.ok) return;
       const payload = await res.json();
       const replacements = payload.replacements || {};
+      let anyApplied = false;
       for (const row of need) {
-        if (replacements[row.word]) row.definition = replacements[row.word];
+        if (replacements[row.word]) {
+          row.definition = replacements[row.word];
+          anyApplied = true;
+        }
       }
+      // Re-render so the panel shows the freshly-loaded definitions instead of
+      // the "Definition coming soon" placeholder.
+      if (anyApplied) renderPanel();
     } catch (err) {
       console.warn("Reader Helper preload failed", err);
     }
