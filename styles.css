@@ -13,6 +13,46 @@
   border-bottom-color: #67c99b !important;
 }
 
+.ell-highlight {
+  cursor: pointer;
+}
+
+.ell-highlight[data-ell-loading="1"] {
+  opacity: 0.5 !important;
+}
+
+.ell-flash {
+  animation: ell-flash-anim 1.2s ease-out;
+}
+
+@keyframes ell-flash-anim {
+  0% {
+    background-color: #fde68a;
+  }
+
+  100% {
+    background-color: transparent;
+  }
+}
+
+.ell-flash-page {
+  animation: ell-flash-page-anim 1.5s ease-out;
+}
+
+@keyframes ell-flash-page-anim {
+  0% {
+    box-shadow: 0 0 0 4px #fde68a, 0 0 14px 6px rgba(251, 191, 36, 0.6);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.ell-word-item[data-word-item] {
+  cursor: pointer;
+}
+
 #ell-panel {
   position: fixed;
   top: 72px;
@@ -305,6 +345,11 @@
   padding-left: 10px;
   background: #f1fbf5;
   border-radius: 12px;
+}
+
+/* Inline-replaced text (proper nouns or simpler words) blends in seamlessly. */
+.ell-generalized {
+  /* class kept as a no-op hook */
 }
 
 .ell-pending-section {

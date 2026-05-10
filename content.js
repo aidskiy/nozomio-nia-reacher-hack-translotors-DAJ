@@ -37,11 +37,126 @@
       try { await loadWords(); } catch (err) { console.warn("Reader Helper load failed", err); }
       highlightActiveWords(document.body);
       startHighlightObserver();
+      preloadReplacements();
     }
     renderPanel();
 
     document.addEventListener("mouseup", handleSelection);
     document.addEventListener("dblclick", handleDoubleClick);
+    document.addEventListener("click", handleHighlightClick);
+  }
+
+  async function handleHighlightClick(event) {
+    if (!session) return;
+    if (isExtensionElement(event.target)) return;
+    const highlight = event.target.closest && event.target.closest(".ell-highlight");
+    if (!highlight) return;
+    const word = highlight.dataset.ellWord;
+    if (!word) return;
+
+    // Always scroll/flash the panel entry for the clicked word
+    scrollPanelToWord(word);
+
+    // Toggle: green -> red
+    if (highlight.classList.contains("ell-replaced")) {
+      revertHighlight(highlight);
+      return;
+    }
+
+    // Red -> green for THIS instance only
+    const row = words.find((w) => w.word === word);
+    if (!row || !row.is_active) return;
+
+    let replacement = row.definition;
+    if (!replacement) {
+      highlight.dataset.ellLoading = "1";
+      try {
+        replacement = await fetchSingleReplacement(row);
+      } finally {
+        delete highlight.dataset.ellLoading;
+      }
+    }
+
+    // Even if there's no good replacement (or it equals the original), still
+    // toggle to green — keep the original word, just visually mark it processed.
+    const original = highlight.dataset.ellOriginal || highlight.textContent;
+    const useReplacement = replacement && normalizeWord(replacement) !== normalizeWord(row.word);
+    applyGreenToSingleNode(highlight, useReplacement ? replacement : original);
+  }
+
+  function revertHighlight(node) {
+    if (!node) return;
+    if (node.dataset.ellOriginal) {
+      node.textContent = node.dataset.ellOriginal;
+    }
+    node.classList.remove("ell-replaced");
+    node.title = "";
+  }
+
+  function applyGreenToSingleNode(node, displayText) {
+    if (!node.dataset.ellOriginal) {
+      node.dataset.ellOriginal = node.textContent;
+    }
+    node.textContent = displayText;
+    const original = node.dataset.ellOriginal;
+    node.title = displayText === original
+      ? node.dataset.ellWord
+      : `${node.dataset.ellWord}: ${displayText}`;
+    node.classList.add("ell-replaced");
+  }
+
+  async function fetchSingleReplacement(row) {
+    const res = await apiFetch("/functions/replace-words", {
+      method: "POST",
+      token: session.accessToken,
+      body: { items: [{ word: row.word, context: getWordContext(row.word) }] }
+    });
+    if (!res.ok) return null;
+    const payload = await res.json();
+    const replacement = payload.replacements && payload.replacements[row.word];
+    if (replacement) row.definition = replacement;
+    return replacement || null;
+  }
+
+  async function preloadReplacements() {
+    if (!session) return;
+    try {
+      const wordsOnPage = getWordsOnPage();
+      const need = words.filter((w) => w.is_active && wordsOnPage.has(w.word) && !w.definition);
+      if (need.length === 0) return;
+      const items = need.map((row) => ({
+        word: row.word,
+        context: getWordContext(row.word)
+      }));
+      const res = await apiFetch("/functions/replace-words", {
+        method: "POST",
+        token: session.accessToken,
+        body: { items }
+      });
+      if (!res.ok) return;
+      const payload = await res.json();
+      const replacements = payload.replacements || {};
+      let anyApplied = false;
+      for (const row of need) {
+        if (replacements[row.word]) {
+          row.definition = replacements[row.word];
+          anyApplied = true;
+        }
+      }
+      // Re-render so the panel shows the freshly-loaded definitions instead of
+      // the "Definition coming soon" placeholder.
+      if (anyApplied) renderPanel();
+    } catch (err) {
+      console.warn("Reader Helper preload failed", err);
+    }
+  }
+
+  function scrollPanelToWord(word) {
+    const li = document.querySelector(`#${PANEL_ID} [data-word-item="${cssEscape(word)}"]`);
+    if (!li) return;
+    li.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    li.classList.add("ell-flash");
+    setTimeout(() => li.classList.remove("ell-flash"), 1200);
   }
 
   // --- Auth ---
@@ -119,6 +234,7 @@
     await loadWords();
     highlightActiveWords(document.body);
     startHighlightObserver();
+    preloadReplacements();
   }
 
   async function signIn(email, password) {
@@ -136,6 +252,7 @@
     await loadWords();
     highlightActiveWords(document.body);
     startHighlightObserver();
+    preloadReplacements();
   }
 
   async function verifyEmail(email, otp) {
@@ -173,7 +290,7 @@
   }
 
   async function signOut() {
-    try { await apiFetch("/api/auth/logout", { method: "POST", token: session && session.accessToken }); } catch (_) {}
+    try { await apiFetch("/api/auth/logout", { method: "POST", token: session && session.accessToken }); } catch (_) { }
     await clearSession();
     authView = "signin";
     authMessage = "Signed out.";
@@ -463,9 +580,9 @@
         <button class="ell-fold-button" type="button" data-action="fold-panel" aria-label="Fold Reader Helper">Fold</button>
       </div>
       <div class="ell-actions-row">
-        <button class="ell-button ell-button-secondary" type="button" data-action="replace">Simplify words to ${Math.round(TARGET_UNDERSTANDING * 100)}%</button>
-        <button class="ell-button ell-button-secondary" type="button" data-action="simplify-page">Simplify page</button>
-        ${pageHasSimplifications() ? '<button class="ell-button ell-button-secondary" type="button" data-action="restore-page">Restore</button>' : ""}
+        <button class="ell-button ell-button-secondary" type="button" data-action="replace">Make comprehensible input</button>
+        <button class="ell-button ell-button-secondary" type="button" data-action="generalize-names">Generalize names</button>
+        <button class="ell-button ell-button-secondary" type="button" data-action="auto-mark">Auto-mark hard words</button>
       </div>
       <p class="ell-panel-subtitle">Signed in as ${escapeHtml(session.user.email)}.
         <button class="ell-link-button" type="button" data-action="signout">Sign out</button>
@@ -477,13 +594,12 @@
         ${renderUnknownWords(activeOnPage)}
       </section>
     `;
-
     panel.querySelector('[data-action="fold-panel"]').addEventListener("click", () => setPanelFolded(true));
-    panel.querySelector('[data-action="replace"]').addEventListener("click", () => simplifyToThreshold(TARGET_UNDERSTANDING));
-    const simplifyBtn = panel.querySelector('[data-action="simplify-page"]');
-    if (simplifyBtn) simplifyBtn.addEventListener("click", simplifyPage);
-    const restoreBtn = panel.querySelector('[data-action="restore-page"]');
-    if (restoreBtn) restoreBtn.addEventListener("click", restorePage);
+    panel.querySelector('[data-action="replace"]').addEventListener("click", () => makeComprehensibleInput(TARGET_UNDERSTANDING));
+    const generalizeBtn = panel.querySelector('[data-action="generalize-names"]');
+    if (generalizeBtn) generalizeBtn.addEventListener("click", generalizeNames);
+    const autoMarkBtn = panel.querySelector('[data-action="auto-mark"]');
+    if (autoMarkBtn) autoMarkBtn.addEventListener("click", autoMarkHardWords);
     panel.querySelector('[data-action="signout"]').addEventListener("click", async () => {
       await signOut();
       renderPanel();
@@ -503,8 +619,23 @@
       });
     }
     panel.querySelectorAll("[data-remove-word]").forEach((button) => {
-      button.addEventListener("click", () => removeActiveWord(button.dataset.removeWord));
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        removeActiveWord(button.dataset.removeWord);
+      });
     });
+    panel.querySelectorAll(".ell-word-item[data-word-item]").forEach((item) => {
+      item.addEventListener("click", () => scrollToFirstOccurrence(item.dataset.wordItem));
+    });
+  }
+
+  function scrollToFirstOccurrence(word) {
+    if (!word) return;
+    const node = document.querySelector(`.ell-highlight[data-ell-word="${cssEscape(word)}"]`);
+    if (!node) return;
+    node.scrollIntoView({ behavior: "smooth", block: "center" });
+    node.classList.add("ell-flash-page");
+    setTimeout(() => node.classList.remove("ell-flash-page"), 1500);
   }
 
   function renderPendingSection() {
@@ -543,7 +674,7 @@
   function renderUnknownWords(rows) {
     if (rows.length === 0) return '<p class="ell-empty">No marked words on this page.</p>';
     const items = rows.map((row) => `
-      <li class="ell-word-item">
+      <li class="ell-word-item" data-word-item="${escapeHtml(row.word)}">
         <span>
           <span class="ell-word">${escapeHtml(row.word)}</span>
           <span class="ell-definition">${escapeHtml(row.definition || getDefinition(row.word))}</span>
@@ -554,7 +685,7 @@
     return `<ul class="ell-word-list">${items.join("")}</ul>`;
   }
 
-async function removeActiveWord(word) {
+  async function removeActiveWord(word) {
     const row = words.find((w) => w.word === word);
     if (!row) return;
     try {
@@ -594,6 +725,18 @@ async function removeActiveWord(word) {
     return (total - unknown) / total;
   }
 
+  function pickEvenlySpread(arr, count) {
+    if (count <= 0 || arr.length === 0) return [];
+    if (count >= arr.length) return arr.slice();
+    const step = arr.length / count;
+    const out = [];
+    for (let i = 0; i < count; i++) {
+      const idx = Math.min(arr.length - 1, Math.floor(i * step + step / 2));
+      out.push(arr[idx]);
+    }
+    return out;
+  }
+
   function flashButton(button, message, restoreLabel) {
     if (!button) return;
     button.disabled = false;
@@ -604,14 +747,17 @@ async function removeActiveWord(word) {
     }, 2200);
   }
 
-  async function simplifyToThreshold(targetRate) {
+  async function makeComprehensibleInput(baselineRate) {
     if (!session) return;
     const button = document.querySelector(`#${PANEL_ID} [data-action="replace"]`);
-    const originalLabel = button ? button.textContent : `Simplify to ${Math.round(targetRate * 100)}%`;
+    const originalLabel = button ? button.textContent : "Make comprehensible input";
 
     const totalWords = countTextWords();
-    const unknownByWord = countUnknownInstancesByWord();
-    const totalUnknown = Array.from(unknownByWord.values()).reduce((a, b) => a + b, 0);
+    // Collect every unreplaced unknown highlight in DOM order (i.e. reading order).
+    const allRedHighlights = Array.from(
+      document.querySelectorAll(".ell-highlight[data-ell-word]:not(.ell-replaced)")
+    );
+    const totalUnknown = allRedHighlights.length;
 
     if (totalWords === 0 || totalUnknown === 0) {
       flashButton(button, "Nothing to simplify", originalLabel);
@@ -619,102 +765,203 @@ async function removeActiveWord(word) {
     }
 
     const currentRate = (totalWords - totalUnknown) / totalWords;
-    if (currentRate >= targetRate) {
+
+    // Progressive: each press closes half the remaining gap to 100%.
+    const halfGapTarget = currentRate + (1 - currentRate) * 0.5;
+    let targetRate = Math.max(baselineRate, halfGapTarget);
+    if (targetRate > 0.985) targetRate = 1.0;
+
+    const maxAllowedUnknown = Math.floor(totalWords * (1 - targetRate));
+    const needToEliminate = Math.max(0, totalUnknown - maxAllowedUnknown);
+
+    if (needToEliminate === 0) {
       flashButton(button, `Already at ${Math.round(currentRate * 100)}%`, originalLabel);
       return;
     }
 
-    const maxAllowedUnknown = Math.floor(totalWords * (1 - targetRate));
-    const needToReplace = totalUnknown - maxAllowedUnknown;
+    // Pick highlights at evenly-spaced positions through the document so the
+    // replacements scaffold reading throughout — not concentrated at the top.
+    const picked = pickEvenlySpread(allRedHighlights, Math.min(needToEliminate, totalUnknown));
+    const wordsNeeded = new Set(picked.map((h) => h.dataset.ellWord));
 
-    // Sort unknown words by their instance count descending — replacing the
-    // most-frequent words first gives the biggest comprehension lift per call.
-    const sorted = Array.from(unknownByWord.entries()).sort((a, b) => b[1] - a[1]);
-
-    const wordsToReplaceSet = new Set();
-    let cumulative = 0;
-    for (const [word, count] of sorted) {
-      if (cumulative >= needToReplace) break;
-      wordsToReplaceSet.add(word);
-      cumulative += count;
-    }
-
-    const rowsToReplace = words.filter((w) => w.is_active && wordsToReplaceSet.has(w.word));
-    await replaceWordSet(rowsToReplace, button, originalLabel);
-  }
-
-  async function replaceWordSet(rowsToReplace, button, originalLabel) {
-    if (rowsToReplace.length === 0) {
-      flashButton(button, "Nothing to simplify", originalLabel);
-      return;
-    }
     if (button) {
       button.disabled = true;
       button.textContent = "Simplifying...";
     }
 
+    const observerWasOn = !!mutationObserver;
+    if (observerWasOn) stopHighlightObserver();
+
     try {
-      const items = rowsToReplace.map((row) => ({
-        word: row.word,
-        context: getWordContext(row.word)
-      }));
-
-      const res = await apiFetch("/functions/replace-words", {
-        method: "POST",
-        token: session.accessToken,
-        body: { items }
-      });
-      if (!res.ok) {
-        const errBody = await safeJson(res);
-        console.warn("Reader Helper replace-words error body:", errBody);
-        const baseMsg = extractError(errBody) || `Replace failed (HTTP ${res.status})`;
-        const diag = errBody
-          ? `\n\nDiagnostic:\nai_body_keys: ${JSON.stringify(errBody.ai_body_keys)}\nai_body_preview: ${(errBody.ai_body_preview || "").slice(0, 800)}\nraw: ${(errBody.raw || "").slice(0, 400)}`
-          : "";
-        throw new Error(baseMsg + diag);
+      // Ensure every word that has a picked instance has a cached replacement.
+      const needFetch = [];
+      for (const word of wordsNeeded) {
+        const row = words.find((w) => w.word === word);
+        if (row && !row.definition) needFetch.push(row);
       }
-
-      const payload = await res.json();
-      const replacements = payload.replacements || {};
-
-      let appliedCount = 0;
-      for (const row of rowsToReplace) {
-        const replacement = replacements[row.word];
-        if (!replacement) continue;
-        if (normalizeWord(replacement) === normalizeWord(row.word)) continue;
-
-        document.querySelectorAll(`.ell-highlight[data-ell-word="${cssEscape(row.word)}"]`).forEach((node) => {
-          if (!node.dataset.ellOriginal) {
-            node.dataset.ellOriginal = node.textContent;
-          }
-          node.textContent = `(${node.dataset.ellOriginal}) ${replacement}`;
-          node.title = `${row.word}: ${replacement}`;
-          node.classList.add("ell-replaced");
-          appliedCount++;
+      if (needFetch.length > 0) {
+        const fetchItems = needFetch.map((row) => ({
+          word: row.word,
+          context: getWordContext(row.word)
+        }));
+        const fetchRes = await apiFetch("/functions/replace-words", {
+          method: "POST",
+          token: session.accessToken,
+          body: { items: fetchItems }
         });
-        row.definition = replacement;
+        if (fetchRes.ok) {
+          const payload = await fetchRes.json();
+          const replacements = payload.replacements || {};
+          for (const row of needFetch) {
+            if (replacements[row.word]) row.definition = replacements[row.word];
+          }
+        }
       }
+
+      // Inline-replace ONLY the picked highlight instances. Other instances of
+      // the same word stay red so the reader still encounters the unknown word
+      // throughout the page.
+      let count = 0;
+      for (const span of picked) {
+        if (!span.isConnected) continue;
+        const word = span.dataset.ellWord;
+        const row = words.find((w) => w.word === word);
+        if (!row || !row.definition) continue;
+        if (normalizeWord(row.definition) === normalizeWord(word)) continue;
+        span.replaceWith(document.createTextNode(row.definition));
+        count++;
+      }
+
+      highlightActiveWords(document.body);
+      renderPanel();
 
       const newRate = Math.round(understandingRate() * 100);
-      const msg = appliedCount > 0 ? `Now ${newRate}% — replaced ${appliedCount}` : "No replacements";
-      flashButton(button, msg, originalLabel);
+      flashButton(
+        button,
+        count > 0 ? `Now ${newRate}% — replaced ${count}` : "No replacements available",
+        originalLabel
+      );
     } catch (err) {
-      console.warn("Reader Helper replace failed", err);
+      console.warn("Reader Helper makeComprehensibleInput failed", err);
       if (button) {
         button.disabled = false;
         button.textContent = originalLabel;
       }
       alert(`Simplify failed: ${err.message}`);
+    } finally {
+      if (observerWasOn) startHighlightObserver();
     }
   }
 
-  // --- Simplify whole page ---
+  // --- Generalize names (inline proper-noun replacement) ---
 
-  const SIMPLIFY_CHUNK = 15;
   const PARAGRAPH_MIN_LEN = 60;
 
-  function pageHasSimplifications() {
-    return !!document.querySelector("[data-ell-original-html]");
+  async function generalizeNames() {
+    if (!session) return;
+    const button = document.querySelector('#' + PANEL_ID + ' [data-action="generalize-names"]');
+    const originalLabel = button ? button.textContent : "Generalize names";
+
+    const paragraphs = collectSimplifiableParagraphs();
+    const pageText = paragraphs.map((p) => p.text).join("\n\n").slice(0, 30000);
+    if (!pageText.trim()) {
+      flashButton(button, "No content found", originalLabel);
+      return;
+    }
+
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Generalizing...";
+    }
+
+    const observerWasOn = !!mutationObserver;
+    if (observerWasOn) stopHighlightObserver();
+
+    try {
+      const res = await apiFetch("/functions/generalize-names", {
+        method: "POST",
+        token: session.accessToken,
+        body: { text: pageText }
+      });
+      if (!res.ok) {
+        const errBody = await safeJson(res);
+        console.warn("Reader Helper generalize-names error body:", errBody);
+        throw new Error(extractError(errBody) || `Generalize failed (HTTP ${res.status})`);
+      }
+      const payload = await res.json();
+      const replacements = payload.replacements || {};
+
+      // Unwrap all existing highlights first so their text is fully exposed for
+      // matching, and so a generalized phrase doesn't end up trapped inside an
+      // old red wrapper. Re-highlight from scratch afterwards.
+      removeAllHighlightsFromPage();
+      const count = applyGeneralizations(replacements);
+      highlightActiveWords(document.body);
+      renderPanel();
+      flashButton(button, count > 0 ? `Generalized ${count}` : "No proper nouns found", originalLabel);
+    } catch (err) {
+      console.warn("Reader Helper generalize-names failed", err);
+      if (button) {
+        button.disabled = false;
+        button.textContent = originalLabel;
+      }
+      alert(`Generalize failed: ${err.message}`);
+    } finally {
+      if (observerWasOn) startHighlightObserver();
+    }
+  }
+
+  function applyGeneralizations(replacements) {
+    const keys = Object.keys(replacements).filter((k) => k && k.trim().length > 0);
+    if (keys.length === 0) return 0;
+    // Longest keys first so "Brian Kernighan" wins over "Kernighan".
+    const sorted = keys.slice().sort((a, b) => b.length - a.length);
+    const pattern = new RegExp(sorted.map(escapeRegExp).join("|"), "g");
+
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+        const parent = node.parentElement;
+        if (!parent) return NodeFilter.FILTER_REJECT;
+        if (isExtensionElement(parent)) return NodeFilter.FILTER_REJECT;
+        if (parent.closest(".ell-generalized")) return NodeFilter.FILTER_REJECT;
+        if (parent.closest("script, style, textarea, input, select, option, code, pre, " +
+          "nav, header, footer, aside, [role='navigation'], [role='banner'], [role='contentinfo']")) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+
+    const textNodes = [];
+    while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+    let replaced = 0;
+    for (const node of textNodes) {
+      const text = node.nodeValue;
+      pattern.lastIndex = 0;
+      if (!pattern.test(text)) continue;
+      pattern.lastIndex = 0;
+      const fragment = document.createDocumentFragment();
+      let lastIndex = 0;
+      let match;
+      while ((match = pattern.exec(text)) !== null) {
+        fragment.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+        const original = match[0];
+        const generic = replacements[original];
+        const span = document.createElement("span");
+        span.className = "ell-generalized";
+        span.dataset.ellGeneralizedOriginal = original;
+        span.title = `Originally: ${original}`;
+        span.textContent = generic;
+        fragment.appendChild(span);
+        replaced++;
+        lastIndex = pattern.lastIndex;
+      }
+      fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+      node.replaceWith(fragment);
+    }
+    return replaced;
   }
 
   const BLOCK_CHILD_TAGS = new Set([
@@ -760,96 +1007,115 @@ async function removeActiveWord(word) {
     return result;
   }
 
-  async function simplifyPage() {
+  async function autoMarkHardWords() {
     if (!session) return;
-    const button = document.querySelector('#' + PANEL_ID + ' [data-action="simplify-page"]');
-    const originalLabel = button ? button.textContent : "Simplify page";
+    const button = document.querySelector('#' + PANEL_ID + ' [data-action="auto-mark"]');
+    const originalLabel = button ? button.textContent : "Auto-mark hard words";
 
+    // Pull text from the same paragraph set the simplifier uses, so we judge
+    // article content rather than nav/sidebar chrome.
     const paragraphs = collectSimplifiableParagraphs();
-    if (paragraphs.length === 0) {
-      flashButton(button, "Nothing to simplify", originalLabel);
+    const pageText = paragraphs.map((p) => p.text).join("\n\n").slice(0, 30000);
+    if (!pageText.trim()) {
+      flashButton(button, "No content found", originalLabel);
       return;
     }
 
     if (button) {
       button.disabled = true;
-      button.textContent = `Simplifying 0/${paragraphs.length}...`;
+      button.textContent = "Scanning...";
     }
 
-    // Tag each paragraph with a stable id and stash the original HTML for restore
-    paragraphs.forEach((p, i) => {
-      const id = `ellp-${Date.now()}-${i}`;
-      p.id = id;
-      p.el.dataset.ellParagraphId = id;
-      p.el.dataset.ellOriginalHtml = p.el.innerHTML;
-    });
-
-    // Disconnect mutation observer while we mutate so it doesn't go nuts
-    const observerWasOn = !!mutationObserver;
-    if (observerWasOn) stopHighlightObserver();
-
-    let totalSimplified = 0;
-    let processed = 0;
-
     try {
-      for (let i = 0; i < paragraphs.length; i += SIMPLIFY_CHUNK) {
-        const chunk = paragraphs.slice(i, i + SIMPLIFY_CHUNK);
-        const items = chunk.map((p) => ({ id: p.id, text: p.text }));
+      const knownHard = words.filter((w) => w.is_active).map((w) => w.word);
+      const res = await apiFetch("/functions/find-hard-words", {
+        method: "POST",
+        token: session.accessToken,
+        body: { text: pageText, known_words: knownHard }
+      });
+      if (!res.ok) {
+        const errBody = await safeJson(res);
+        console.warn("Reader Helper find-hard-words error body:", errBody);
+        throw new Error(extractError(errBody) || `Auto-mark failed (HTTP ${res.status})`);
+      }
+      const payload = await res.json();
+      const hardWords = Array.isArray(payload.hard_words) ? payload.hard_words : [];
 
-        const res = await apiFetch("/functions/simplify-page", {
-          method: "POST",
-          token: session.accessToken,
-          body: { items }
-        });
-        if (!res.ok) {
-          const errBody = await safeJson(res);
-          console.warn("Reader Helper simplify-page error body:", errBody);
-          throw new Error(extractError(errBody) || `Simplify failed (HTTP ${res.status})`);
+      // Normalize the LLM output through cleanWord so it matches our DB shape
+      const normalized = hardWords
+        .map((w) => cleanWord(w))
+        .filter((w) => w && w.length >= 3);
+
+      // Partition: brand-new vs already-in-words-but-inactive vs already-active
+      const existingByWord = new Map(words.map((w) => [w.word, w]));
+      const toCreate = [];
+      const toReactivate = [];
+      for (const word of normalized) {
+        const existing = existingByWord.get(word);
+        if (!existing) {
+          if (!toCreate.find((x) => x.word === word)) toCreate.push({ word });
+        } else if (!existing.is_active) {
+          toReactivate.push(existing);
         }
-
-        const payload = await res.json();
-        const map = payload.simplifications || {};
-
-        for (const p of chunk) {
-          const simpler = map[p.id];
-          if (!simpler || simpler.trim() === p.text) continue;
-          p.el.textContent = simpler;
-          p.el.classList.add("ell-simplified-paragraph");
-          totalSimplified++;
-        }
-
-        processed += chunk.length;
-        if (button) button.textContent = `Simplifying ${processed}/${paragraphs.length}...`;
       }
 
-      // Re-highlight any marked words that survived in the simplified text
+      let createdCount = 0;
+      let reactivatedCount = 0;
+
+      // Reactivate inactive rows in parallel
+      if (toReactivate.length > 0) {
+        await Promise.all(toReactivate.map(async (row) => {
+          const r = await apiFetch(
+            `/api/database/records/words?id=eq.${encodeURIComponent(row.id)}`,
+            {
+              method: "PATCH",
+              token: session.accessToken,
+              body: { is_active: true }
+            }
+          );
+          if (r.ok) {
+            row.is_active = true;
+            reactivatedCount++;
+          }
+        }));
+      }
+
+      // Batch insert new rows
+      if (toCreate.length > 0) {
+        const r = await apiFetch("/api/database/records/words", {
+          method: "POST",
+          token: session.accessToken,
+          prefer: "return=representation",
+          body: toCreate
+        });
+        if (!r.ok) {
+          const errBody = await safeJson(r);
+          throw new Error(extractError(errBody) || `Insert failed (HTTP ${r.status})`);
+        }
+        const created = await r.json();
+        if (Array.isArray(created)) {
+          for (const row of created) words.unshift(row);
+          createdCount = created.length;
+        }
+      }
+
       highlightActiveWords(document.body);
       renderPanel();
-      flashButton(button, `Simplified ${totalSimplified}/${paragraphs.length}`, originalLabel);
+      const total = createdCount + reactivatedCount;
+      const msg = total > 0
+        ? `Marked ${total} hard word${total === 1 ? "" : "s"}`
+        : "No new hard words found";
+      flashButton(button, msg, originalLabel);
     } catch (err) {
-      console.warn("Reader Helper simplify-page failed", err);
+      console.warn("Reader Helper auto-mark failed", err);
       if (button) {
         button.disabled = false;
         button.textContent = originalLabel;
       }
-      alert(`Simplify failed: ${err.message}`);
-    } finally {
-      if (observerWasOn) startHighlightObserver();
+      alert(`Auto-mark failed: ${err.message}`);
     }
   }
 
-  function restorePage() {
-    if (mutationObserver) stopHighlightObserver();
-    document.querySelectorAll("[data-ell-original-html]").forEach((el) => {
-      el.innerHTML = el.dataset.ellOriginalHtml;
-      delete el.dataset.ellOriginalHtml;
-      delete el.dataset.ellParagraphId;
-      el.classList.remove("ell-simplified-paragraph");
-    });
-    highlightActiveWords(document.body);
-    renderPanel();
-    if (session) startHighlightObserver();
-  }
 
   function getWordContext(word) {
     const node = document.querySelector(`.ell-highlight[data-ell-word="${cssEscape(word)}"]`);
