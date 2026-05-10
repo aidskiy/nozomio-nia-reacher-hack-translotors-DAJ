@@ -1,10 +1,13 @@
 {
   "manifest_version": 3,
-  "name": "Simple Reader Helper",
+  "name": "Toffle",
   "version": "0.2.0",
   "description": "Highlight unknown words and show simple replacements while reading articles. Sign-in required.",
   "permissions": ["storage"],
   "host_permissions": ["https://nvh9k4xn.us-west.insforge.app/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],

@@ -1,15 +1,16 @@
 .ell-highlight {
-  background: #ffe8e8 !important;
-  color: #b00020 !important;
-  border-bottom: 2px solid #d93025 !important;
-  border-radius: 3px;
-  padding: 0 2px;
+  background: #fff0ed !important;
+  color: #d74c2f !important;
+  border-bottom: 2px solid #ff8a5f !important;
+  border-radius: 8px;
+  padding: 1px 4px;
+  box-shadow: 0 6px 18px rgba(255, 139, 95, 0.16);
 }
 
 .ell-highlight.ell-replaced {
-  background: #e6f9ec !important;
-  color: #15803d !important;
-  border-bottom-color: #15803d !important;
+  background: #eefaf3 !important;
+  color: #24835b !important;
+  border-bottom-color: #67c99b !important;
 }
 
 .ell-highlight {
@@ -25,8 +26,13 @@
 }
 
 @keyframes ell-flash-anim {
-  0%   { background-color: #fde68a; }
-  100% { background-color: transparent; }
+  0% {
+    background-color: #fde68a;
+  }
+
+  100% {
+    background-color: transparent;
+  }
 }
 
 .ell-flash-page {
@@ -34,8 +40,13 @@
 }
 
 @keyframes ell-flash-page-anim {
-  0%   { box-shadow: 0 0 0 4px #fde68a, 0 0 14px 6px rgba(251, 191, 36, 0.6); }
-  100% { box-shadow: 0 0 0 0 transparent; }
+  0% {
+    box-shadow: 0 0 0 4px #fde68a, 0 0 14px 6px rgba(251, 191, 36, 0.6);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
 }
 
 .ell-word-item[data-word-item] {
@@ -47,71 +58,180 @@
   top: 72px;
   right: 16px;
   z-index: 2147483647;
-  width: 320px;
+  width: 350px;
   max-height: calc(100vh - 96px);
   overflow: auto;
   box-sizing: border-box;
-  padding: 14px;
-  color: #1f2937;
-  background: #ffffff;
-  border: 1px solid #d7dde5;
-  border-radius: 8px;
-  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.18);
-  font-family: Arial, Helvetica, sans-serif;
+  padding: 18px;
+  color: #2d2a2a;
+  background: #f4eeee;
+  background-image:
+    radial-gradient(circle at 18% 8%, #ffd8cd 0, #ffd8cd 45px, transparent 115px),
+    radial-gradient(circle at 94% 80%, #e7d2fb 0, #e7d2fb 50px, transparent 135px),
+    linear-gradient(145deg, #fbf7f3 0%, #f0eeee 54%, #f7e9f4 100%);
+  border: 2px solid #ffffff;
+  border-radius: 30px;
+  box-shadow:
+    0 34px 80px rgba(44, 39, 45, 0.24),
+    0 12px 28px rgba(255, 142, 101, 0.14),
+    inset 0 2px 0 #ffffff;
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, Helvetica, sans-serif;
   font-size: 14px;
-  line-height: 1.4;
+  line-height: 1.45;
+  text-align: center;
+}
+
+#ell-panel.ell-folded {
+  top: 180px;
+  right: 0;
+  width: auto;
+  max-height: none;
+  overflow: visible;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 #ell-panel * {
   box-sizing: border-box;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, Helvetica, sans-serif;
   letter-spacing: 0;
 }
 
 .ell-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 12px;
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  margin-bottom: 16px;
+  padding: 0 44px;
 }
 
 .ell-panel-title {
   margin: 0;
-  color: #111827;
-  font-size: 17px;
+  color: #282525;
+  font-size: 23px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.ell-panel-title::before {
+  content: "";
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  margin-right: 10px;
+  vertical-align: -7px;
+  background:
+    radial-gradient(circle at 32% 35%, #ffdbe6 0 18%, transparent 19%),
+    linear-gradient(135deg, #ffa6c6 0%, #ff7c54 58%, #d558ff 100%);
+  border-radius: 999px;
+  box-shadow:
+    0 8px 18px rgba(255, 123, 88, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.ell-fold-button {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+  color: #302d2d;
+  background: #fffefe;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  box-shadow: 0 12px 26px rgba(44, 39, 45, 0.16), inset 0 1px 0 #ffffff, inset 0 -1px 0 #e2dcda;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.ell-fold-button:hover {
+  color: #df5b38;
+  transform: translateY(-1px);
+}
+
+.ell-bookmark-tab {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  min-width: 50px;
+  min-height: 170px;
+  padding: 12px 9px;
+  color: #2f2b2b;
+  background: #fff8f5;
+  background-image: linear-gradient(160deg, #fffefe 0%, #fff0e8 52%, #f3e7ff 100%);
+  border: 2px solid #ffffff;
+  border-right: 0;
+  border-radius: 22px 0 0 22px;
+  box-shadow: 0 24px 52px rgba(44, 39, 45, 0.26), 0 10px 24px rgba(255, 142, 101, 0.14), inset 0 2px 0 #ffffff;
+  cursor: pointer;
+  font-size: 12px;
   font-weight: 700;
+}
+
+.ell-bookmark-tab:hover {
+  transform: translateX(-2px);
+}
+
+.ell-bookmark-label {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+
+.ell-bookmark-count {
+  display: grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #ff8e65, #df5bff);
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1;
+  box-shadow: 0 7px 16px rgba(255, 126, 88, 0.28);
 }
 
 .ell-panel-subtitle {
-  margin: 0 0 12px;
-  color: #5f6b7a;
-  font-size: 12px;
+  margin: 0 0 14px;
+  color: #625c5c;
+  font-size: 13px;
 }
 
 .ell-section {
-  padding-top: 12px;
-  margin-top: 12px;
-  border-top: 1px solid #e5e7eb;
+  padding: 14px;
+  margin-top: 14px;
+  background: #fffafa;
+  border: 2px solid #ffffff;
+  border-radius: 24px;
+  box-shadow: inset 0 2px 0 #ffffff, 0 16px 34px rgba(44, 39, 45, 0.13);
+  text-align: center;
 }
 
 .ell-section:first-of-type {
-  padding-top: 0;
   margin-top: 0;
-  border-top: 0;
 }
 
 .ell-section-title {
-  margin: 0 0 8px;
-  color: #374151;
+  margin: 0 0 10px;
+  color: #5f5959;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
   text-transform: uppercase;
 }
 
 .ell-word-list {
   display: grid;
-  gap: 8px;
+  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -122,80 +242,94 @@
   grid-template-columns: 1fr auto;
   gap: 10px;
   align-items: start;
-  padding: 9px;
-  background: #f8fafc;
-  border: 1px solid #e5e7eb;
-  border-radius: 7px;
+  padding: 12px;
+  background: #fdf7f5;
+  border: 2px solid #ffffff;
+  border-radius: 20px;
+  box-shadow: inset 0 2px 0 #ffffff, 0 14px 28px rgba(44, 39, 45, 0.12);
+  text-align: left;
 }
 
 .ell-word {
   display: block;
-  color: #b00020;
-  font-size: 14px;
-  font-weight: 700;
+  color: #302d2d;
+  font-size: 15px;
+  font-weight: 800;
   word-break: break-word;
 }
 
 .ell-definition {
   display: block;
   margin-top: 2px;
-  color: #4b5563;
+  color: #6b6262;
   font-size: 13px;
 }
 
 .ell-empty {
   margin: 0;
-  color: #6b7280;
+  color: #7b7272;
   font-size: 13px;
 }
 
 .ell-button {
-  min-height: 30px;
-  padding: 6px 9px;
-  color: #ffffff;
-  background: #b00020;
+  display: inline-grid;
+  place-items: center;
+  text-align: center;
+  min-height: 40px;
+  padding: 9px 14px;
+  color: #2f2b2b;
+  background: #fffefe;
   border: 0;
-  border-radius: 6px;
+  border-radius: 999px;
+  box-shadow: 0 14px 30px rgba(44, 39, 45, 0.16), inset 0 1px 0 #ffffff, inset 0 -1px 0 #e7dedb;
   cursor: pointer;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 800;
+  transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
 }
 
 .ell-button:hover {
-  background: #8f001a;
+  background: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 18px 36px rgba(44, 39, 45, 0.2), inset 0 1px 0 #ffffff, inset 0 -1px 0 #e7dedb;
 }
 
 .ell-button:disabled {
-  background: #d1d5db;
-  color: #6b7280;
+  background: #e7e1df;
+  color: #8c8585;
   cursor: progress;
+  transform: none;
 }
 
 .ell-button-secondary {
-  color: #374151;
-  background: #e5e7eb;
+  color: #332f2f;
+  background: #fffefe;
 }
 
 .ell-button-secondary:hover {
-  background: #d1d5db;
+  background: #fff7f1;
 }
 
 .ell-remove-button {
-  width: 28px;
-  height: 28px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  width: 32px;
+  height: 32px;
   padding: 0;
-  color: #6b7280;
+  color: #6f6666;
   background: #ffffff;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  box-shadow: 0 12px 24px rgba(44, 39, 45, 0.16), inset 0 1px 0 #ffffff, inset 0 -1px 0 #e5dcda;
   cursor: pointer;
   font-size: 16px;
   line-height: 1;
 }
 
 .ell-remove-button:hover {
-  color: #b00020;
-  border-color: #b00020;
+  color: #df5b38;
+  transform: translateY(-1px);
 }
 
 .ell-library-list {
@@ -208,109 +342,144 @@
 }
 
 .ell-library-chip {
-  padding: 4px 7px;
-  color: #374151;
-  background: #eef2f7;
+  padding: 6px 10px;
+  color: #332f2f;
+  background: #fffefe;
+  border: 2px solid #ffffff;
   border-radius: 999px;
   font-size: 12px;
   word-break: break-word;
+  box-shadow: 0 10px 20px rgba(44, 39, 45, 0.12), inset 0 1px 0 #ffffff;
 }
 
 .ell-actions-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 12px;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.ell-simplified-paragraph {
+  border-left: 4px solid #72c69a;
+  padding-left: 10px;
+  background: #f1fbf5;
+  border-radius: 12px;
 }
 
 /* Inline-replaced text (proper nouns or simpler words) blends in seamlessly. */
-.ell-generalized { /* class kept as a no-op hook */ }
+.ell-generalized {
+  /* class kept as a no-op hook */
+}
 
 .ell-pending-section {
-  background: #fff8e6;
-  border: 1px solid #fbd589;
-  border-radius: 8px;
-  padding: 10px 12px;
+  background: #fff4ee;
+  border: 2px solid #ffffff;
+  border-radius: 24px;
+  padding: 14px;
   margin-top: 12px;
+  box-shadow: inset 0 2px 0 #ffffff, 0 16px 34px rgba(255, 147, 96, 0.18), 0 8px 22px rgba(44, 39, 45, 0.1);
 }
 
 .ell-pending-text {
   margin: 6px 0 10px;
-  color: #1f2937;
+  color: #302d2d;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 800;
   word-break: break-word;
 }
 
 .ell-pending-actions {
   display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
+.ell-fact-check-result {
+  margin: 12px 0 0;
+  padding: 12px;
+  color: #332f2f;
+  background: #fffefe;
+  border: 2px solid #ffffff;
+  border-radius: 18px;
+  box-shadow: inset 0 2px 0 #ffffff, 0 12px 24px rgba(44, 39, 45, 0.1);
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: left;
+  word-break: break-word;
+}
+
 .ell-button-mark {
-  background: #b00020;
+  background: linear-gradient(135deg, #ff9c70, #ff795d);
   color: #ffffff;
+  box-shadow: 0 18px 34px rgba(255, 126, 88, 0.32), inset 0 2px 0 rgba(255, 255, 255, 0.55);
 }
 
 .ell-button-mark:hover {
-  background: #8f001a;
+  background: linear-gradient(135deg, #ff8b61, #f0644c);
 }
 
 .ell-auth-form {
   display: grid;
-  gap: 10px;
-  margin: 0 0 12px;
+  justify-items: center;
+  gap: 12px;
+  margin: 0 0 14px;
 }
 
 .ell-field {
   display: grid;
   gap: 4px;
+  width: 100%;
+  text-align: left;
 }
 
 .ell-field span {
-  color: #374151;
+  color: #5f5959;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .ell-field input {
   width: 100%;
-  padding: 8px 10px;
-  color: #111827;
-  background: #ffffff;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-family: Arial, Helvetica, sans-serif;
+  padding: 12px 14px;
+  color: #2f2b2b;
+  background: #fffefe;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, Helvetica, sans-serif;
   font-size: 14px;
   box-sizing: border-box;
+  box-shadow: inset 0 2px 0 #ffffff, inset 0 -1px 0 #e7dedb, 0 12px 26px rgba(44, 39, 45, 0.12);
 }
 
 .ell-field input:focus {
   outline: none;
-  border-color: #b00020;
-  box-shadow: 0 0 0 2px rgba(176, 0, 32, 0.18);
+  border-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(255, 147, 96, 0.2), inset 0 -1px 0 #e7dedb;
 }
 
 .ell-auth-message {
   margin: 0 0 10px;
-  padding: 8px 10px;
-  color: #1f2937;
-  background: #fff3f3;
-  border: 1px solid #f3c2c8;
-  border-radius: 6px;
+  padding: 10px 12px;
+  color: #302d2d;
+  background: #fff4ee;
+  border: 2px solid #ffffff;
+  border-radius: 18px;
   font-size: 12px;
+  box-shadow: inset 0 2px 0 #ffffff, 0 12px 26px rgba(255, 147, 96, 0.16);
 }
 
 .ell-auth-switch {
   margin: 8px 0 0;
-  color: #4b5563;
+  color: #6b6262;
   font-size: 12px;
 }
 
 .ell-link-button {
   margin-left: 4px;
   padding: 0;
-  color: #b00020;
+  color: #df5b38;
   background: transparent;
   border: 0;
   cursor: pointer;
@@ -321,5 +490,5 @@
 }
 
 .ell-link-button:hover {
-  color: #8f001a;
+  color: #c24a30;
 }

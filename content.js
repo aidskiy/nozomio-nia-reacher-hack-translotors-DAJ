@@ -2,6 +2,7 @@
   const API_BASE = "https://nvh9k4xn.us-west.insforge.app";
   const TOKEN_KEY = "insforge_tokens";
   const PANEL_ID = "ell-panel";
+  const PANEL_FOLDED_KEY = "ellPanelFolded";
 
   const dictionary = {
     approximately: "about",
@@ -18,6 +19,8 @@
 
   let pendingRange = null;
   let pendingWord = "";
+  let factCheckMessage = "";
+  let isFactChecking = false;
   let session = null;
   let words = [];
   let authView = "signin";
@@ -25,6 +28,7 @@
   let pendingVerificationEmail = null;
   let mutationObserver = null;
   let highlightDebounce = null;
+  let isPanelFolded = localStorage.getItem(PANEL_FOLDED_KEY) === "true";
 
   init();
 
@@ -288,7 +292,7 @@
   }
 
   async function signOut() {
-    try { await apiFetch("/api/auth/logout", { method: "POST", token: session && session.accessToken }); } catch (_) {}
+    try { await apiFetch("/api/auth/logout", { method: "POST", token: session && session.accessToken }); } catch (_) { }
     await clearSession();
     authView = "signin";
     authMessage = "Signed out.";
@@ -356,6 +360,7 @@
 
     pendingRange = selection.getRangeAt(0).cloneRange();
     pendingWord = word;
+    factCheckMessage = "";
     renderPanel();
   }
 
@@ -370,6 +375,7 @@
 
     pendingRange = selection.getRangeAt(0).cloneRange();
     pendingWord = word;
+    factCheckMessage = "";
     markPendingWord();
   }
 
@@ -381,6 +387,7 @@
 
     pendingRange = null;
     pendingWord = "";
+    factCheckMessage = "";
 
     try {
       await addWordRemote(word);
@@ -400,15 +407,34 @@
     if (document.getElementById(PANEL_ID)) return;
     const panel = document.createElement("aside");
     panel.id = PANEL_ID;
-    panel.setAttribute("aria-label", "Reader Helper");
+    panel.setAttribute("aria-label", "Toffle");
     document.body.appendChild(panel);
   }
 
   function renderPanel() {
     const panel = document.getElementById(PANEL_ID);
     if (!panel) return;
+    panel.classList.toggle("ell-folded", isPanelFolded);
+    if (isPanelFolded) {
+      renderFoldedPanel(panel);
+      return;
+    }
+
     if (session) renderSignedInPanel(panel);
     else renderAuthPanel(panel);
+  }
+
+  function renderFoldedPanel(panel) {
+    panel.innerHTML = `
+      <button class="ell-bookmark-tab" type="button" data-action="expand-panel" aria-label="Open Toffle">
+        <span class="ell-bookmark-count">${escapeHtml(String(getPageWordCount()))}</span>
+        <span class="ell-bookmark-label">Toffle</span>
+      </button>
+    `;
+
+    panel.querySelector('[data-action="expand-panel"]').addEventListener("click", () => {
+      setPanelFolded(false);
+    });
   }
 
   function renderAuthPanel(panel) {
@@ -417,11 +443,12 @@
     const heading = isVerify ? "Verify your email" : isSignUp ? "Create your account" : "Sign in";
     const subtitle = isVerify
       ? "Enter the 6-digit code we emailed you."
-      : "Reader Helper saves your unknown words to your account.";
+      : "Toffle saves your unknown words to your account.";
 
     panel.innerHTML = `
       <div class="ell-panel-header">
-        <h2 class="ell-panel-title">Reader Helper</h2>
+        <button class="ell-fold-button" type="button" data-action="fold-panel" aria-label="Close Toffle">x</button>
+        <h2 class="ell-panel-title">Toffle</h2>
       </div>
       <p class="ell-panel-subtitle">${escapeHtml(subtitle)}</p>
       <h3 class="ell-section-title">${escapeHtml(heading)}</h3>
@@ -431,6 +458,7 @@
     `;
 
     if (isVerify) {
+      panel.querySelector('[data-action="fold-panel"]').addEventListener("click", () => setPanelFolded(true));
       panel.querySelector('[data-action="verify"]').addEventListener("click", onVerifySubmit);
       panel.querySelector('[data-action="resend"]').addEventListener("click", onResend);
       panel.querySelector('[data-action="back"]').addEventListener("click", () => {
@@ -440,6 +468,7 @@
         renderPanel();
       });
     } else {
+      panel.querySelector('[data-action="fold-panel"]').addEventListener("click", () => setPanelFolded(true));
       panel.querySelector('[data-action="submit"]').addEventListener("click", onAuthSubmit);
       panel.querySelector('[data-action="switch"]').addEventListener("click", () => {
         authView = isSignUp ? "signin" : "signup";
@@ -552,7 +581,8 @@
 
     panel.innerHTML = `
       <div class="ell-panel-header">
-        <h2 class="ell-panel-title">Reader Helper</h2>
+        <button class="ell-fold-button" type="button" data-action="fold-panel" aria-label="Close Toffle">x</button>
+        <h2 class="ell-panel-title">Toffle</h2>
       </div>
       <div class="ell-actions-row">
         <button class="ell-button ell-button-secondary" type="button" data-action="replace">Make comprehensible input</button>
@@ -562,14 +592,14 @@
       <p class="ell-panel-subtitle">Signed in as ${escapeHtml(session.user.email)}.
         <button class="ell-link-button" type="button" data-action="signout">Sign out</button>
       </p>
-      <p class="ell-panel-subtitle">Select text on the page, then click <em>Mark unknown</em>. (Double-click a single word to mark instantly.)</p>
+      <p class="ell-panel-subtitle">Select text on the page, then mark it unknown or fact check it. (Double-click a single word to mark instantly.)</p>
       ${renderPendingSection()}
       <section class="ell-section">
         <h3 class="ell-section-title">Unknown Words on This Page</h3>
         ${renderUnknownWords(activeOnPage)}
       </section>
     `;
-
+    panel.querySelector('[data-action="fold-panel"]').addEventListener("click", () => setPanelFolded(true));
     panel.querySelector('[data-action="replace"]').addEventListener("click", () => makeComprehensibleInput(TARGET_UNDERSTANDING));
     const generalizeBtn = panel.querySelector('[data-action="generalize-names"]');
     if (generalizeBtn) generalizeBtn.addEventListener("click", generalizeNames);
@@ -585,11 +615,17 @@
       markBtn.addEventListener("mousedown", (e) => e.preventDefault());
       markBtn.addEventListener("click", markPendingWord);
     }
+    const factCheckBtn = panel.querySelector('[data-action="fact-check"]');
+    if (factCheckBtn) {
+      factCheckBtn.addEventListener("mousedown", (e) => e.preventDefault());
+      factCheckBtn.addEventListener("click", factCheckPendingText);
+    }
     const clearBtn = panel.querySelector('[data-action="clear-pending"]');
     if (clearBtn) {
       clearBtn.addEventListener("click", () => {
         pendingRange = null;
         pendingWord = "";
+        factCheckMessage = "";
         renderPanel();
       });
     }
@@ -621,10 +657,117 @@
         <p class="ell-pending-text">"${escapeHtml(pendingWord)}"</p>
         <div class="ell-pending-actions">
           <button class="ell-button ell-button-mark" type="button" data-action="mark-pending">Mark unknown</button>
+          <button class="ell-button ell-button-secondary" type="button" data-action="fact-check"${isFactChecking ? " disabled" : ""}>${isFactChecking ? "Checking..." : "Fact check"}</button>
           <button class="ell-button ell-button-secondary" type="button" data-action="clear-pending">Clear</button>
         </div>
+        ${factCheckMessage ? `<p class="ell-fact-check-result">${escapeHtml(factCheckMessage)}</p>` : ""}
       </section>
     `;
+  }
+
+  async function factCheckPendingText() {
+    if (!session || !pendingWord || isFactChecking) return;
+    const text = pendingWord;
+
+    isFactChecking = true;
+    factCheckMessage = "";
+    renderPanel();
+
+    try {
+      const payload = {
+        context: text
+      };
+      console.log("[Toffle] Fact check request:", payload);
+
+      const response = await sendFactCheckMessage(payload, session.accessToken);
+      const body = response.body;
+      console.log("[Toffle] Fact check response:", {
+        ok: response.ok,
+        status: response.status,
+        body
+      });
+
+      if (!response.ok) {
+        throw new Error(extractError(body) || `Fact check failed (HTTP ${response.status})`);
+      }
+
+      factCheckMessage = extractFactCheckResult(body, text);
+    } catch (err) {
+      console.warn("Toffle fact check failed", err);
+      factCheckMessage = `Could not fact check: ${err.message}`;
+    } finally {
+      isFactChecking = false;
+      renderPanel();
+    }
+  }
+
+  function sendFactCheckMessage(payload, token) {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage({ type: "FACT_CHECK", payload, token }, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        resolve(response);
+      });
+    });
+  }
+
+  function extractFactCheckResult(body, text) {
+    if (!body) return "No fact-check result returned.";
+    if (typeof body === "string") return body;
+    if (body.context && body.result) return formatFactCheckValue(body.result);
+    if (body.fact_check) return String(body.fact_check);
+    if (body.factCheck) return String(body.factCheck);
+    if (body.result) return formatFactCheckValue(body.result);
+    if (body.answer) return String(body.answer);
+    if (body.message) return String(body.message);
+    if (body.factChecks && body.factChecks[text]) return String(body.factChecks[text]);
+    if (Array.isArray(body.results) && body.results[0]) {
+      const first = body.results[0];
+      return formatFactCheckValue(first);
+    }
+    return formatFactCheckValue(body);
+  }
+
+  function formatFactCheckValue(value) {
+    if (typeof value === "string") return value;
+    if (!value || typeof value !== "object") return String(value);
+
+    const parts = [];
+    if (value.statement) parts.push(`Statement: ${value.statement}`);
+    if (value.verdict) parts.push(`Verdict: ${value.verdict}`);
+    if (value.evidence) parts.push(`Evidence: ${value.evidence}`);
+    if (value.explanation) parts.push(value.explanation);
+    if (value.reasoning) parts.push(`Reasoning: ${value.reasoning}`);
+    if (value.summary) parts.push(value.summary);
+    if (value.status && value.data && typeof value.data.total_results === "number") {
+      parts.push(`Search completed. Found ${value.data.total_results} source results.`);
+    }
+    if (value.citations) parts.push(`Citations: ${formatSources(value.citations)}`);
+    if (value.sources) parts.push(`Sources: ${formatSources(value.sources)}`);
+
+    return parts.length ? parts.join("\n\n") : JSON.stringify(value, null, 2);
+  }
+
+  function formatSources(sources) {
+    if (typeof sources === "string") return sources;
+    if (!Array.isArray(sources)) return JSON.stringify(sources);
+    return sources.map((source) => {
+      if (typeof source === "string") return source;
+      return source.title || source.url || JSON.stringify(source);
+    }).join(", ");
+  }
+
+  function setPanelFolded(folded) {
+    isPanelFolded = folded;
+    localStorage.setItem(PANEL_FOLDED_KEY, String(folded));
+    renderPanel();
+  }
+
+  function getPageWordCount() {
+    if (!session) return 0;
+    return getWordsOnPage().size;
   }
 
   function getWordsOnPage() {
@@ -650,7 +793,7 @@
     return `<ul class="ell-word-list">${items.join("")}</ul>`;
   }
 
-async function removeActiveWord(word) {
+  async function removeActiveWord(word) {
     const row = words.find((w) => w.word === word);
     if (!row) return;
     try {
@@ -891,7 +1034,7 @@ async function removeActiveWord(word) {
         if (isExtensionElement(parent)) return NodeFilter.FILTER_REJECT;
         if (parent.closest(".ell-generalized")) return NodeFilter.FILTER_REJECT;
         if (parent.closest("script, style, textarea, input, select, option, code, pre, " +
-            "nav, header, footer, aside, [role='navigation'], [role='banner'], [role='contentinfo']")) {
+          "nav, header, footer, aside, [role='navigation'], [role='banner'], [role='contentinfo']")) {
           return NodeFilter.FILTER_REJECT;
         }
         return NodeFilter.FILTER_ACCEPT;
@@ -929,7 +1072,7 @@ async function removeActiveWord(word) {
     return replaced;
   }
 
-const BLOCK_CHILD_TAGS = new Set([
+  const BLOCK_CHILD_TAGS = new Set([
     "P", "DIV", "SECTION", "ARTICLE", "ASIDE", "HEADER", "FOOTER", "NAV", "MAIN",
     "UL", "OL", "TABLE", "TR", "TBODY", "THEAD", "TFOOT", "FORM", "FIGURE",
     "BLOCKQUOTE", "PRE", "DETAILS", "DIALOG",
@@ -972,7 +1115,7 @@ const BLOCK_CHILD_TAGS = new Set([
     return result;
   }
 
-async function autoMarkHardWords() {
+  async function autoMarkHardWords() {
     if (!session) return;
     const button = document.querySelector('#' + PANEL_ID + ' [data-action="auto-mark"]');
     const originalLabel = button ? button.textContent : "Auto-mark hard words";
