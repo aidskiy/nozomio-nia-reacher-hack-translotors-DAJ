@@ -690,6 +690,18 @@ async function removeActiveWord(word) {
     return (total - unknown) / total;
   }
 
+  function pickEvenlySpread(arr, count) {
+    if (count <= 0 || arr.length === 0) return [];
+    if (count >= arr.length) return arr.slice();
+    const step = arr.length / count;
+    const out = [];
+    for (let i = 0; i < count; i++) {
+      const idx = Math.min(arr.length - 1, Math.floor(i * step + step / 2));
+      out.push(arr[idx]);
+    }
+    return out;
+  }
+
   function flashButton(button, message, restoreLabel) {
     if (!button) return;
     button.disabled = false;
@@ -706,8 +718,11 @@ async function removeActiveWord(word) {
     const originalLabel = button ? button.textContent : "Make comprehensible input";
 
     const totalWords = countTextWords();
-    const unknownByWord = countUnknownInstancesByWord();
-    const totalUnknown = Array.from(unknownByWord.values()).reduce((a, b) => a + b, 0);
+    // Collect every unreplaced unknown highlight in DOM order (i.e. reading order).
+    const allRedHighlights = Array.from(
+      document.querySelectorAll(".ell-highlight[data-ell-word]:not(.ell-replaced)")
+    );
+    const totalUnknown = allRedHighlights.length;
 
     if (totalWords === 0 || totalUnknown === 0) {
       flashButton(button, "Nothing to simplify", originalLabel);
@@ -729,15 +744,10 @@ async function removeActiveWord(word) {
       return;
     }
 
-    // Pick most-frequent words first.
-    const sorted = Array.from(unknownByWord.entries()).sort((a, b) => b[1] - a[1]);
-    const wordsToEliminate = new Set();
-    let cumulative = 0;
-    for (const [word, count] of sorted) {
-      if (cumulative >= needToEliminate && wordsToEliminate.size > 0) break;
-      wordsToEliminate.add(word);
-      cumulative += count;
-    }
+    // Pick highlights at evenly-spaced positions through the document so the
+    // replacements scaffold reading throughout — not concentrated at the top.
+    const picked = pickEvenlySpread(allRedHighlights, Math.min(needToEliminate, totalUnknown));
+    const wordsNeeded = new Set(picked.map((h) => h.dataset.ellWord));
 
     if (button) {
       button.disabled = true;
@@ -748,10 +758,9 @@ async function removeActiveWord(word) {
     if (observerWasOn) stopHighlightObserver();
 
     try {
-      // Make sure each chosen word has a cached replacement. Fetch any missing
-      // ones in a single batch.
+      // Ensure every word that has a picked instance has a cached replacement.
       const needFetch = [];
-      for (const word of wordsToEliminate) {
+      for (const word of wordsNeeded) {
         const row = words.find((w) => w.word === word);
         if (row && !row.definition) needFetch.push(row);
       }
@@ -774,20 +783,18 @@ async function removeActiveWord(word) {
         }
       }
 
-      // Inline-replace each red highlight with its simpler equivalent — same
-      // shape as Generalize names: unwrap the .ell-highlight span and drop a
-      // plain text node in its place.
+      // Inline-replace ONLY the picked highlight instances. Other instances of
+      // the same word stay red so the reader still encounters the unknown word
+      // throughout the page.
       let count = 0;
-      for (const word of wordsToEliminate) {
+      for (const span of picked) {
+        if (!span.isConnected) continue;
+        const word = span.dataset.ellWord;
         const row = words.find((w) => w.word === word);
         if (!row || !row.definition) continue;
         if (normalizeWord(row.definition) === normalizeWord(word)) continue;
-        document
-          .querySelectorAll(`.ell-highlight[data-ell-word="${cssEscape(word)}"]:not(.ell-replaced)`)
-          .forEach((span) => {
-            span.replaceWith(document.createTextNode(row.definition));
-            count++;
-          });
+        span.replaceWith(document.createTextNode(row.definition));
+        count++;
       }
 
       highlightActiveWords(document.body);
